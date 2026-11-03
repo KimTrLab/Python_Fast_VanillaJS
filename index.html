@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>음식 메뉴 관리 시스템</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 850px;
+        margin: 0 auto;
+        padding: 20px;
+        color: #333;
+      }
+      nav {
+        display: flex;
+        gap: 10px;
+        border-bottom: 2px solid #ccc;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+      }
+      nav button {
+        padding: 8px 16px;
+        cursor: pointer;
+        border: 1px solid #ccc;
+        background-color: #f9f9f9;
+        border-radius: 4px;
+      }
+      nav button.active {
+        background-color: #007bff;
+        color: white;
+        border-color: #007bff;
+      }
+      /* 검색창 스타일 */
+      .search-box {
+        margin-bottom: 15px;
+      }
+      .search-box input {
+        padding: 8px;
+        width: 250px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+      /* 게시판 테이블 스타일 */
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+      }
+      th,
+      td {
+        border: 1px solid #ddd;
+        padding: 10px;
+        text-align: left;
+      }
+      th {
+        background-color: #f2f2f2;
+      }
+      .action-btns {
+        text-align: right;
+        white-space: nowrap;
+      }
+      .action-btns button {
+        padding: 5px 10px;
+        margin-left: 5px;
+        cursor: pointer;
+      }
+      /* 카드 추천 스타일 (홈 화면) */
+      .recommend-list {
+        display: flex;
+        gap: 15px;
+      }
+      .card {
+        flex: 1;
+        border: 1px solid #ddd;
+        padding: 15px;
+        border-radius: 5px;
+        background-color: #fafafa;
+      }
+      /* 폼 스타일 */
+      .form-group {
+        margin-bottom: 12px;
+      }
+      .form-group label {
+        display: block;
+        margin-bottom: 4px;
+        font-weight: bold;
+      }
+      .form-group input,
+      .form-group textarea {
+        width: 100%;
+        padding: 8px;
+        box-sizing: border-box;
+      }
+      form button {
+        padding: 8px 16px;
+        cursor: pointer;
+        background-color: #28a745;
+        color: white;
+        border: none;
+        border-radius: 4px;
+      }
+      /* 모달 스타일 */
+      .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        justify-content: center;
+        align-items: center;
+      }
+      .modal-overlay.active {
+        display: flex;
+      }
+      .modal {
+        background: white;
+        padding: 20px;
+        border-radius: 5px;
+        width: 90%;
+        max-width: 400px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>음식 메뉴 관리</h1>
+    <nav>
+      <button id="nav-home" class="active" onclick="renderHome()">
+        홈으로
+      </button>
+      <button id="nav-all" onclick="renderAllMenu()">전체메뉴보기</button>
+      <button id="nav-add" onclick="renderAddMenu()">메뉴등록</button>
+    </nav>
+
+    <div id="content"></div>
+
+    <!-- 수정용 모달 -->
+    <div id="edit-modal" class="modal-overlay">
+      <div class="modal">
+        <h2>메뉴 수정</h2>
+        <div id="edit-form">
+          <input type="hidden" id="edit-id" />
+          <div class="form-group">
+            <label for="edit-name">이름</label>
+            <input type="text" id="edit-name" required />
+          </div>
+          <div class="form-group">
+            <label for="edit-calories">칼로리 (kcal)</label>
+            <input type="number" id="edit-calories" required />
+          </div>
+          <div class="form-group">
+            <label for="edit-description">설명</label>
+            <textarea id="edit-description" rows="3" required></textarea>
+          </div>
+          <button
+            type="button"
+            onclick="saveEdit()"
+            style="background-color: #28a745; color: white; border: none"
+          >
+            저장
+          </button>
+          <button
+            type="button"
+            onclick="closeModal()"
+            style="background-color: #dc3545; color: white; border: none"
+          >
+            취소
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 모듈 스크립트 선언 -->
+    <script src="./data-api/data.js"></script>
+    <script>
+      const contentDiv = document.getElementById("content");
+
+      // 네비게이션 버튼 활성화 표시
+      function updateNav(activeId) {
+        document
+          .querySelectorAll("nav button")
+          .forEach((btn) => btn.classList.remove("active"));
+        document.getElementById(activeId).classList.add("active");
+      }
+
+      // 1. 홈 화면 (랜덤 추천 3개)
+      async function renderHome() {
+        updateNav("nav-home");
+        contentDiv.innerHTML = "<p>로딩 중...</p>";
+
+        const foodList = await getAllMenus();
+
+        if (!foodList || foodList.length === 0) {
+          contentDiv.innerHTML =
+            "<h2>오늘의 추천 메뉴</h2><p>등록된 메뉴가 없습니다.</p>";
+          return;
+        }
+
+        const shuffled = [...foodList].sort(() => 0.5 - Math.random());
+        const selected = shuffled.slice(0, 3);
+
+        let html =
+          "<h2>오늘의 추천 메뉴 (랜덤 3선)</h2><div class='recommend-list'>";
+        selected.forEach((food) => {
+          html += `
+            <div class="card">
+              <h3>${food.name}</h3>
+              <p><strong>칼로리:</strong> ${food.calories} kcal</p>
+              <p><strong>설명:</strong> ${food.description || ""}</p>
+            </div>
+          `;
+        });
+        html += "</div>";
+
+        contentDiv.innerHTML = html;
+      }
+
+      // 2. 전체메뉴보기 화면 (백엔드 검색 기능 연동)
+      async function renderAllMenu(filterKeyword = "") {
+        updateNav("nav-all");
+        contentDiv.innerHTML = "<p>로딩 중...</p>";
+
+        const filteredList = filterKeyword
+          ? await searchMenus(filterKeyword)
+          : await getAllMenus();
+
+        console.log(filteredList);
+        let html = `
+          <h2>전체 메뉴 목록</h2>
+          <div class="search-box">
+            <input type="text" id="search-input" placeholder="메뉴 이름 검색..." value="${filterKeyword}" oninput="handleSearch(event)">
+          </div>
+        `;
+
+        if (!filteredList || filteredList.length === 0) {
+          html += "<p>검색 결과가 없거나 등록된 메뉴가 없습니다.</p>";
+        } else {
+          html += `
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 10%;">ID</th>
+                  <th style="width: 20%;">이름</th>
+                  <th style="width: 15%;">칼로리</th>
+                  <th style="width: 35%;">설명</th>
+                  <th style="width: 20%; text-align: right;">관리</th>
+                </tr>
+              </thead>
+              <tbody>
+          `;
+
+          filteredList.forEach((food) => {
+            console.log(food);
+            html += `
+              <tr>
+                <td>${food.id}</td>
+                <td><strong>${food.name}</strong></td>
+                <td>${food.calories} kcal</td>
+                <td>${food.description || ""}</td>
+                <td class="action-btns">
+                  <button onclick="openModal(${food.id})">수정</button>
+                  <button onclick="deleteFood(${food.id})" style="background-color: #dc3545; color: white; border: none;">삭제</button>
+                </td>
+              </tr>
+            `;
+          });
+
+          html += `
+              </tbody>
+            </table>
+          `;
+        }
+
+        contentDiv.innerHTML = html;
+      }
+
+      // 검색어 입력 디바운스 또는 핸들러
+      function handleSearch(e) {
+        renderAllMenu(e.target.value);
+      }
+
+      // 3. 메뉴등록 화면 렌더링
+      function renderAddMenu() {
+        updateNav("nav-add");
+        contentDiv.innerHTML = "";
+
+        const title = document.createElement("h2");
+        title.textContent = "새 메뉴 등록";
+
+        const form = document.createElement("form");
+        form.addEventListener("submit", handleAddMenu);
+
+        // --- 이름 입력 그룹 ---
+        const nameGroup = document.createElement("div");
+        nameGroup.className = "form-group";
+        const nameLabel = document.createElement("label");
+        nameLabel.textContent = "이름";
+        nameLabel.setAttribute("for", "add-name");
+        const nameInput = document.createElement("input");
+        nameInput.type = "text";
+        nameInput.id = "add-name";
+        nameInput.required = true;
+        nameGroup.appendChild(nameLabel);
+        nameGroup.appendChild(nameInput);
+
+        // --- 칼로리 입력 그룹 ---
+        const calGroup = document.createElement("div");
+        calGroup.className = "form-group";
+        const calLabel = document.createElement("label");
+        calLabel.textContent = "칼로리 (kcal)";
+        calLabel.setAttribute("for", "add-calories");
+        const calInput = document.createElement("input");
+        calInput.type = "number";
+        calInput.id = "add-calories";
+        calInput.required = true;
+        calGroup.appendChild(calLabel);
+        calGroup.appendChild(calInput);
+
+        // --- 설명 입력 그룹 ---
+        const descGroup = document.createElement("div");
+        descGroup.className = "form-group";
+        const descLabel = document.createElement("label");
+        descLabel.textContent = "설명";
+        descLabel.setAttribute("for", "add-description");
+        const descTextarea = document.createElement("textarea");
+        descTextarea.id = "add-description";
+        descTextarea.rows = 3;
+        descTextarea.required = true;
+        descGroup.appendChild(descLabel);
+        descGroup.appendChild(descTextarea);
+
+        // --- 제출 버튼 ---
+        const submitBtn = document.createElement("button");
+        submitBtn.type = "submit";
+        submitBtn.textContent = "등록하기";
+
+        form.appendChild(nameGroup);
+        form.appendChild(calGroup);
+        form.appendChild(descGroup);
+        form.appendChild(submitBtn);
+
+        contentDiv.appendChild(title);
+        contentDiv.appendChild(form);
+      }
+
+      // 등록 처리 (서버 연동)
+      async function handleAddMenu(e) {
+        e.preventDefault();
+
+        const name = document.getElementById("add-name").value;
+        const calories = Number(document.getElementById("add-calories").value);
+        const description = document.getElementById("add-description").value;
+
+        await addMenu({ name, calories, description });
+
+        alert("메뉴가 성공적으로 등록되었습니다.");
+        renderAllMenu();
+      }
+
+      // 4. 삭제 기능 (서버 연동)
+      async function deleteFood(id) {
+        if (confirm("정말 이 메뉴를 삭제하시겠습니까?")) {
+          await deleteMenu(id);
+          renderAllMenu();
+        }
+      }
+
+      // 5. 모달 수정 기능
+      async function openModal(id) {
+        const food = await getMenu(id);
+        if (!food) return;
+
+        document.getElementById("edit-id").value = food.id;
+        document.getElementById("edit-name").value = food.name;
+        document.getElementById("edit-calories").value = food.calories;
+        document.getElementById("edit-description").value =
+          food.description || "";
+
+        document.getElementById("edit-modal").classList.add("active");
+      }
+
+      function closeModal() {
+        document.getElementById("edit-modal").classList.remove("active");
+      }
+
+      // 수정 저장 (서버 연동)
+      async function saveEdit() {
+        const id = Number(document.getElementById("edit-id").value);
+        const name = document.getElementById("edit-name").value;
+        const calories = Number(document.getElementById("edit-calories").value);
+        const description = document.getElementById("edit-description").value;
+
+        if (!name || !calories || !description) {
+          alert("모든 항목을 입력해주세요.");
+          return;
+        }
+
+        await updateMenu(id, { name, calories, description });
+
+        closeModal();
+        renderAllMenu();
+      }
+
+      // 초기 화면 진입
+      renderHome();
+    </script>
+  </body>
+</html>
