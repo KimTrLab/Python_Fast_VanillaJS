@@ -1,9 +1,24 @@
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from storage import data
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
+from pathlib import Path
+
+from storage import data
+
+
+# ---------------------------------------
+# 기본 경로 설정
+# ---------------------------------------
+
+BASE_DIR = Path(__file__).resolve().parent
+
+
+# ---------------------------------------
+# FastAPI 객체 생성
+# ---------------------------------------
 
 app = FastAPI()
 
@@ -18,6 +33,17 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+
+# ---------------------------------------
+# 정적 파일 제공 설정
+# ---------------------------------------
+
+app.mount(
+    "/data-api",
+    StaticFiles(directory=BASE_DIR / "data-api"),
+    name="data-api"
 )
 
 
@@ -124,8 +150,14 @@ def delete_menu(menu_id: int):
     }
 
 
+# ---------------------------------------
+# 메인 페이지 제공
+# ---------------------------------------
 
 @app.get("/", response_class=HTMLResponse)
 def read_root():
-    with open("index.html", encoding='utf-8') as f:
+
+    index_path = BASE_DIR / "index.html"
+
+    with open(index_path, encoding="utf-8") as f:
         return f.read()
