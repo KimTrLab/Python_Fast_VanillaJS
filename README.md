@@ -49,3 +49,4 @@ HTML, CSS, Vanilla JavaScript와 FastAPI를 활용하여 만든 가벼운 웹 �
  ┣ 📜 main.py             # FastAPI 백엔드 서버
  ┗ 📜 requirements.txt    # 파이썬 패키지 의존성 목록
 ```
+![Render Docs](./img/render-docs.JPG)
